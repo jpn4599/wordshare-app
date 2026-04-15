@@ -4,20 +4,30 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-async function askGemini(prompt: string, systemPrompt: string): Promise<string | null> {
-  try {
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      systemInstruction: systemPrompt,
-    });
+async function askGemini(prompt: string, systemPrompt: string, retries = 2): Promise<string | null> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-2.5-flash',
+        systemInstruction: systemPrompt,
+      });
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    return text || null;
-  } catch (error) {
-    console.error('Gemini API error:', error);
-    return null;
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      return text || null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Gemini API error (attempt ${attempt + 1}/${retries + 1}):`, message);
+
+      // Retry on 503 (overloaded) or 429 (rate limit)
+      if (attempt < retries && (message.includes('503') || message.includes('429'))) {
+        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        continue;
+      }
+      return null;
+    }
   }
+  return null;
 }
 
 /**
