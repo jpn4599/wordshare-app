@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pandoc /Users/nishidaaota/vibecoding/WordShare_v2.0_仕様書_Specification.docx -o /tmp/wordshare_spec.md)",
+      "Bash(npm install:*)",
+      "Bash(export PATH=\"/usr/local/bin:/opt/homebrew/bin:$PATH\")",
+      "Bash(npm --version)",
+      "Bash(npx next:*)",
+      "Bash(curl -s -X POST https://gthbyliriqgprhvdyxru.supabase.co/rest/v1/rpc -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0aGJ5bGlyaXFncHJodmR5eHJ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDYxNTEyNCwiZXhwIjoyMDkwMTkxMTI0fQ.PrmOJGmO5jpE_CdZtWVxnpSTfIHQt5lZJRhtD0ULqak' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0aGJ5bGlyaXFncHJodmR5eHJ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDYxNTEyNCwiZXhwIjoyMDkwMTkxMTI0fQ.PrmOJGmO5jpE_CdZtWVxnpSTfIHQt5lZJRhtD0ULqak' -H 'Content-Type: application/json')",
+      "Bash(curl -s -X GET 'https://gthbyliriqgprhvdyxru.supabase.co/rest/v1/profiles?select=id&limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0aGJ5bGlyaXFncHJodmR5eHJ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDYxNTEyNCwiZXhwIjoyMDkwMTkxMTI0fQ.PrmOJGmO5jpE_CdZtWVxnpSTfIHQt5lZJRhtD0ULqak' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0aGJ5bGlyaXFncHJodmR5eHJ1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDYxNTEyNCwiZXhwIjoyMDkwMTkxMTI0fQ.PrmOJGmO5jpE_CdZtWVxnpSTfIHQt5lZJRhtD0ULqak')",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' '__TRACKED_VAR__/__TRACKED_VAR__?select=id&limit=1' -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git --version)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
