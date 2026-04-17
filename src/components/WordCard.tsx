@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-
 import { CommentSection } from '@/components/CommentSection';
 import { ReactionBar } from '@/components/ReactionBar';
+import { TagBadge } from '@/components/tags/TagBadge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
 import { timeAgo } from '@/lib/utils';
-import type { Comment, Post, Reaction } from '@/lib/types';
+import type { Comment, PostWithTags, Reaction } from '@/lib/types';
 
 export function WordCard({
   post,
@@ -16,15 +16,18 @@ export function WordCard({
   userId,
   onToggleReaction,
   onCreateComment,
+  onEditTags,
 }: {
-  post: Post;
+  post: PostWithTags;
   reactions: Reaction[];
   comments: Comment[];
   userId?: string;
   onToggleReaction: (postId: string, emoji: Reaction['emoji']) => void;
   onCreateComment: (postId: string, text: string) => Promise<void>;
+  onEditTags?: (post: PostWithTags) => void;
 }) {
   const [showComments, setShowComments] = useState(false);
+  const tags = post.tags ?? [];
 
   return (
     <Card className="space-y-4">
@@ -39,7 +42,7 @@ export function WordCard({
             <button
               type="button"
               className="text-sm text-primary"
-              onClick={() => setShowComments((value) => !value)}
+              onClick={() => setShowComments((v) => !v)}
             >
               {showComments ? '閉じる' : `コメント ${comments.length}`}
             </button>
@@ -66,6 +69,37 @@ export function WordCard({
                 <p className="mt-2 text-sm leading-6 text-text-mid">{post.episode}</p>
               </div>
             ) : null}
+
+            {/* Tag area */}
+            <div
+              className="flex flex-wrap items-center gap-1.5"
+              style={{ cursor: onEditTags ? 'pointer' : 'default' }}
+              onClick={() => onEditTags?.(post)}
+              title={onEditTags ? 'タグを編集' : undefined}
+            >
+              {tags.map((tag) => (
+                <TagBadge key={tag.id} name={tag.name} source={tag.source} />
+              ))}
+              {tags.length === 0 && post.tagging_status === 'pending' && (
+                <span className="text-[11px] text-text-light">タグ生成待ち...</span>
+              )}
+              {tags.length === 0 && post.tagging_status === 'failed' && (
+                <span className="text-[11px] text-text-light">タグ生成失敗</span>
+              )}
+              {onEditTags && (
+                <span
+                  style={{
+                    fontSize: '11px',
+                    color: '#8B8B8B',
+                    padding: '2px 6px',
+                    border: '1px dashed #E8E0D8',
+                    borderRadius: '8px',
+                  }}
+                >
+                  ＋ タグ編集
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>

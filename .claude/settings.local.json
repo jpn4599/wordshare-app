@@ -12,7 +12,25 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(git --version)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(brew --version)",
+      "Bash(gh auth:*)",
+      "Bash(gh repo:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(vercel --version)",
+      "Bash(export PATH=\"/usr/local/bin:/opt/homebrew/bin:/Users/nishidaaota/.nvm/versions/node/v24.14.1/bin:$PATH\")",
+      "Bash(vercel whoami:*)",
+      "Bash(vercel link:*)",
+      "Bash(vercel env:*)",
+      "Bash(vercel --prod --yes)",
+      "Bash(curl -s -X POST http://localhost:3000/api/ai/example -H 'Content-Type: application/json' -d '{\"word\":\"serendipity\",\"meaning\":\"偶然の幸運\"}')",
+      "Bash(curl -s 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyDIC_m0-4Itq_u1sjJK3l3h8Jhuzw1IJgA' -H 'Content-Type: application/json' -d '{\"contents\":[{\"parts\":[{\"text\":\"Say hello in Japanese\"}]}]}')",
+      "Bash(curl -s 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyDIC_m0-4Itq_u1sjJK3l3h8Jhuzw1IJgA' -H 'Content-Type: application/json' -d '{\"contents\":[{\"parts\":[{\"text\":\"Say hello in Japanese\"}]}]}')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('candidates',[{}]\\)[0].get\\('content',{}\\).get\\('parts',[{}]\\)[0].get\\('text','ERROR: ' + json.dumps\\(d\\)\\)\\)\")",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' 'https://gthbyliriqgprhvdyxru.supabase.co/rest/v1/tags?select=id&limit=1' -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__')"
     ]
   }
 }

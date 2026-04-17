@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-
 import { createClient } from '@/lib/supabase/client';
-import type { Comment, Post, Reaction } from '@/lib/types';
+import type { Comment, Post, PostWithTags, Reaction } from '@/lib/types';
+import type { Tag, TagSource } from '@/lib/types/tag';
 
 type PostBundle = {
-  posts: Post[];
+  posts: PostWithTags[];
   reactionsByPost: Record<string, Reaction[]>;
   commentsByPost: Record<string, Comment[]>;
 };
@@ -38,15 +38,22 @@ export function usePosts(userId?: string) {
     setLoading(true);
     setError(null);
 
-    const [{ data: posts, error: postsError }, { data: reactions }, { data: comments }] =
-      await Promise.all([
-        supabase.from('posts_with_counts').select('*').order('created_at', { ascending: false }),
-        supabase.from('reactions').select('*'),
-        supabase
-          .from('comments')
-          .select('*, profiles:author_id(username, avatar_color)')
-          .order('created_at', { ascending: true }),
-      ]);
+    const [
+      { data: posts, error: postsError },
+      { data: reactions },
+      { data: comments },
+      { data: wordTags },
+    ] = await Promise.all([
+      supabase.from('posts_with_counts').select('*').order('created_at', { ascending: false }),
+      supabase.from('reactions').select('*'),
+      supabase
+        .from('comments')
+        .select('*, profiles:author_id(username, avatar_color)')
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('word_tags')
+        .select('post_id, source, tag:tags(id, name, axis, color)'),
+    ]);
 
     if (postsError) {
       setError(postsError.message);
@@ -54,19 +61,33 @@ export function usePosts(userId?: string) {
       return;
     }
 
+    // Group tags by post_id
+    const tagsByPost: Record<string, Array<Tag & { source: TagSource }>> = {};
+    for (const wt of wordTags ?? []) {
+      const tag = Array.isArray(wt.tag) ? wt.tag[0] : wt.tag;
+      if (!tag) continue;
+      tagsByPost[wt.post_id] ??= [];
+      tagsByPost[wt.post_id].push({ ...(tag as Tag), source: wt.source as TagSource });
+    }
+
     const normalizedComments =
       comments?.map((comment) => ({
         ...comment,
-        author_name:
-          Array.isArray(comment.profiles) ? comment.profiles[0]?.username : comment.profiles?.username,
-        author_color:
-          Array.isArray(comment.profiles)
-            ? comment.profiles[0]?.avatar_color
-            : comment.profiles?.avatar_color,
+        author_name: Array.isArray(comment.profiles)
+          ? comment.profiles[0]?.username
+          : comment.profiles?.username,
+        author_color: Array.isArray(comment.profiles)
+          ? comment.profiles[0]?.avatar_color
+          : comment.profiles?.avatar_color,
       })) ?? [];
 
+    const postsWithTags: PostWithTags[] = ((posts ?? []) as Post[]).map((p) => ({
+      ...p,
+      tags: tagsByPost[p.id] ?? [],
+    }));
+
     setBundle({
-      posts: (posts ?? []) as Post[],
+      posts: postsWithTags,
       reactionsByPost: groupBy((reactions ?? []) as Reaction[]),
       commentsByPost: groupBy(normalizedComments as Comment[]),
     });
@@ -77,28 +98,16 @@ export function usePosts(userId?: string) {
     void load();
   }, [load]);
 
+  // Realtime subscriptions (posts, reactions, comments, word_tags)
   useEffect(() => {
-    if (!supabase) {
-      return;
-    }
+    if (!supabase) return;
 
     const channel = supabase
       .channel('wordshare-feed')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'posts' },
-        () => void load()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'reactions' },
-        () => void load()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'comments' },
-        () => void load()
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => void load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reactions' }, () => void load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => void load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'word_tags' }, () => void load())
       .subscribe();
 
     return () => {
@@ -108,48 +117,44 @@ export function usePosts(userId?: string) {
 
   const createPost = useCallback(
     async (values: Pick<Post, 'word' | 'meaning' | 'example' | 'episode'>) => {
-      if (!supabase || !userId) {
-        return;
-      }
+      if (!supabase || !userId) return;
 
-      const { error: insertError } = await supabase.from('posts').insert({
-        author_id: userId,
-        ...values,
-      });
+      const { data: newPost, error: insertError } = await supabase
+        .from('posts')
+        .insert({ author_id: userId, ...values })
+        .select('id')
+        .single();
 
-      if (insertError) {
-        throw insertError;
-      }
+      if (insertError) throw insertError;
 
       await load();
+
+      // Phase 4: Trigger background tagging (fire-and-forget)
+      if (newPost?.id && process.env.NEXT_PUBLIC_TAG_GENERATION_ENABLED !== 'false') {
+        fetch('/api/posts/tags/batch-generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ post_ids: [newPost.id] }),
+        }).catch((err) => console.warn('Background tag generation failed:', err));
+      }
     },
     [load, supabase, userId]
   );
 
   const toggleReaction = useCallback(
     async (postId: string, emoji: Reaction['emoji']) => {
-      if (!supabase || !userId) {
-        return;
-      }
+      if (!supabase || !userId) return;
 
       const existing = bundle.reactionsByPost[postId]?.find(
-        (reaction) => reaction.user_id === userId && reaction.emoji === emoji
+        (r) => r.user_id === userId && r.emoji === emoji
       );
 
       if (existing) {
-        const { error: deleteError } = await supabase.from('reactions').delete().eq('id', existing.id);
-        if (deleteError) {
-          throw deleteError;
-        }
+        const { error } = await supabase.from('reactions').delete().eq('id', existing.id);
+        if (error) throw error;
       } else {
-        const { error: insertError } = await supabase.from('reactions').insert({
-          post_id: postId,
-          user_id: userId,
-          emoji,
-        });
-        if (insertError) {
-          throw insertError;
-        }
+        const { error } = await supabase.from('reactions').insert({ post_id: postId, user_id: userId, emoji });
+        if (error) throw error;
       }
 
       await load();
@@ -159,22 +164,22 @@ export function usePosts(userId?: string) {
 
   const createComment = useCallback(
     async (postId: string, text: string) => {
-      if (!supabase || !userId) {
-        return;
-      }
+      if (!supabase || !userId) return;
 
-      const { error: insertError } = await supabase.from('comments').insert({
-        post_id: postId,
-        author_id: userId,
-        text,
-      });
-      if (insertError) {
-        throw insertError;
-      }
+      const { error } = await supabase.from('comments').insert({ post_id: postId, author_id: userId, text });
+      if (error) throw error;
       await load();
     },
     [load, supabase, userId]
   );
+
+  /** Update a post's tag list locally (after TagEditModal saves) */
+  const updatePostTags = useCallback((updatedPost: PostWithTags) => {
+    setBundle((prev) => ({
+      ...prev,
+      posts: prev.posts.map((p) => (p.id === updatedPost.id ? updatedPost : p)),
+    }));
+  }, []);
 
   return {
     ...bundle,
@@ -185,5 +190,6 @@ export function usePosts(userId?: string) {
     createPost,
     toggleReaction,
     createComment,
+    updatePostTags,
   };
 }

@@ -1,4 +1,5 @@
 // src/lib/types.ts — WordShare Type Definitions
+import type { Tag, TagSource } from '@/lib/types/tag';
 
 export interface Profile {
   id: string;
@@ -17,6 +18,9 @@ export interface Post {
   episode: string;
   created_at: string;
   updated_at: string;
+  // v2.1: tagging
+  tagging_status?: 'pending' | 'processing' | 'completed' | 'failed';
+  tagged_at?: string | null;
   // Joined fields
   author_name?: string;
   author_color?: string;
@@ -25,6 +29,13 @@ export interface Post {
   comment_count?: number;
   reaction_count?: number;
 }
+
+/** Post with tag information loaded */
+export interface PostWithTags extends Post {
+  tags: Array<Tag & { source: TagSource }>;
+}
+
+export type { Tag, TagSource };
 
 export interface Reaction {
   id: string;
