@@ -21,14 +21,24 @@ export async function POST(request: NextRequest) {
   // Use admin client for writes (tagging_status updates etc.)
   const admin = createAdminClient();
 
-  const body = (await request.json()) as { post_ids?: string[] };
-  const { post_ids } = body;
+  const body = (await request.json()) as {
+    post_ids?: string[];
+    include_failed?: boolean;
+    include_all?: boolean;
+  };
+  const { post_ids, include_failed, include_all } = body;
 
-  // Fetch pending posts
-  let query = admin
-    .from('posts')
-    .select('id, word, meaning, example')
-    .eq('tagging_status', 'pending');
+  // Fetch pending posts (optionally also failed, or all)
+  let query = admin.from('posts').select('id, word, meaning, example');
+
+  if (include_all) {
+    // Reprocess everything
+    query = query.not('tagging_status', 'eq', 'processing');
+  } else if (include_failed) {
+    query = query.in('tagging_status', ['pending', 'failed']);
+  } else {
+    query = query.eq('tagging_status', 'pending');
+  }
 
   if (post_ids && post_ids.length > 0) {
     query = query.in('id', post_ids);

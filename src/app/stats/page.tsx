@@ -5,6 +5,7 @@ import { Leaderboard } from '@/components/Leaderboard';
 import { SRSProgress } from '@/components/SRSProgress';
 import { TopBar } from '@/components/TopBar';
 import { WeeklyChart } from '@/components/WeeklyChart';
+import { BulkTaggingPanel } from '@/components/tags/BulkTaggingPanel';
 import { Card } from '@/components/ui/Card';
 import { useAuth } from '@/hooks/useAuth';
 import { useStats } from '@/hooks/useStats';
@@ -48,6 +49,7 @@ export default function StatsPage() {
           <SRSProgress mastered={mastered} learning={learning} fresh={fresh} />
           <WeeklyChart data={weekly} />
           <Leaderboard items={leaderboard} />
+          {user && <BulkTaggingPanel />}
         </>
       )}
 
