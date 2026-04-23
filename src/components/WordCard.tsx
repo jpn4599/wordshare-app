@@ -17,6 +17,7 @@ export function WordCard({
   onToggleReaction,
   onCreateComment,
   onEditTags,
+  onDelete,
 }: {
   post: PostWithTags;
   reactions: Reaction[];
@@ -25,9 +26,28 @@ export function WordCard({
   onToggleReaction: (postId: string, emoji: Reaction['emoji']) => void;
   onCreateComment: (postId: string, text: string) => Promise<void>;
   onEditTags?: (post: PostWithTags) => void;
+  onDelete?: (postId: string) => Promise<void>;
 }) {
   const [showComments, setShowComments] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const tags = post.tags ?? [];
+  const isAuthor = Boolean(userId && userId === post.author_id);
+
+  async function handleDelete() {
+    if (!onDelete || deleting) return;
+    const ok = window.confirm(
+      `「${post.word}」を削除しますか？\n\nリアクション・コメント・タグもすべて一緒に削除されます。この操作は取り消せません。`
+    );
+    if (!ok) return;
+
+    setDeleting(true);
+    try {
+      await onDelete(post.id);
+    } catch (e) {
+      alert(`削除に失敗しました: ${(e as Error).message}`);
+      setDeleting(false);
+    }
+  }
 
   return (
     <Card className="space-y-4">
@@ -39,13 +59,27 @@ export function WordCard({
               <p className="text-sm font-semibold text-text">{post.author_name}</p>
               <p className="text-xs text-text-light">{timeAgo(post.created_at)}</p>
             </div>
-            <button
-              type="button"
-              className="text-sm text-primary"
-              onClick={() => setShowComments((v) => !v)}
-            >
-              {showComments ? '閉じる' : `コメント ${comments.length}`}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="text-sm text-primary"
+                onClick={() => setShowComments((v) => !v)}
+              >
+                {showComments ? '閉じる' : `コメント ${comments.length}`}
+              </button>
+              {isAuthor && onDelete && (
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  title="この投稿を削除"
+                  aria-label="投稿を削除"
+                  className="text-sm text-text-light transition hover:text-accent disabled:opacity-40"
+                >
+                  {deleting ? '削除中…' : '🗑'}
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="mt-4 space-y-3">

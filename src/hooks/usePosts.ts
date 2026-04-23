@@ -181,6 +181,34 @@ export function usePosts(userId?: string) {
     }));
   }, []);
 
+  /** Delete a post (author only — enforced by Supabase RLS) */
+  const deletePost = useCallback(
+    async (postId: string) => {
+      if (!supabase || !userId) return;
+
+      // Optimistic UI update — remove immediately
+      setBundle((prev) => ({
+        posts: prev.posts.filter((p) => p.id !== postId),
+        reactionsByPost: Object.fromEntries(
+          Object.entries(prev.reactionsByPost).filter(([id]) => id !== postId)
+        ),
+        commentsByPost: Object.fromEntries(
+          Object.entries(prev.commentsByPost).filter(([id]) => id !== postId)
+        ),
+      }));
+
+      const { error: deleteError } = await supabase.from('posts').delete().eq('id', postId);
+
+      if (deleteError) {
+        // Roll back on error by re-fetching full state
+        await load();
+        throw deleteError;
+      }
+      // Reactions, comments, word_tags, srs_cards, quiz_history all cascade via FK
+    },
+    [load, supabase, userId]
+  );
+
   return {
     ...bundle,
     loading,
@@ -191,5 +219,6 @@ export function usePosts(userId?: string) {
     toggleReaction,
     createComment,
     updatePostTags,
+    deletePost,
   };
 }

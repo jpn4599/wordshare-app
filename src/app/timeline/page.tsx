@@ -28,6 +28,7 @@ export default function TimelinePage() {
     toggleReaction,
     createComment,
     updatePostTags,
+    deletePost,
   } = usePosts(user?.id);
 
   const [view, setView] = useState<TimelineView>('chronological');
@@ -93,12 +94,15 @@ export default function TimelinePage() {
                 onToggleReaction={toggleReaction}
                 onCreateComment={createComment}
                 onEditTags={user ? setEditingPost : undefined}
+                onDelete={user ? deletePost : undefined}
               />
             ))
           ) : (
             <TagGroupedView
               posts={posts}
               onEditTags={user ? setEditingPost : () => {}}
+              userId={user?.id}
+              onDelete={user ? deletePost : undefined}
             />
           )}
         </div>

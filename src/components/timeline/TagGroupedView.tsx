@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { TagBadge } from '@/components/tags/TagBadge';
 import type { PostWithTags } from '@/lib/types';
 import { timeAgo } from '@/lib/utils';
@@ -9,11 +9,32 @@ import { Avatar } from '@/components/ui/Avatar';
 interface TagGroupedViewProps {
   posts: PostWithTags[];
   onEditTags: (post: PostWithTags) => void;
+  userId?: string;
+  onDelete?: (postId: string) => Promise<void>;
 }
 
 type SortMode = 'count' | 'name' | 'recent';
 
-export function TagGroupedView({ posts, onEditTags }: TagGroupedViewProps) {
+export function TagGroupedView({ posts, onEditTags, userId, onDelete }: TagGroupedViewProps) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDelete(e: React.MouseEvent, post: PostWithTags) {
+    e.stopPropagation();
+    if (!onDelete || deletingId) return;
+    const ok = window.confirm(
+      `「${post.word}」を削除しますか？\n\nリアクション・コメント・タグもすべて一緒に削除されます。この操作は取り消せません。`
+    );
+    if (!ok) return;
+
+    setDeletingId(post.id);
+    try {
+      await onDelete(post.id);
+    } catch (err) {
+      alert(`削除に失敗しました: ${(err as Error).message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  }
   const [sortMode, setSortMode] = useState<SortMode>('count');
   const [expandedTags, setExpandedTags] = useState<Set<string>>(new Set(['__first__']));
 
@@ -182,11 +203,42 @@ export function TagGroupedView({ posts, onEditTags }: TagGroupedViewProps) {
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <Avatar name={post.author_name || 'U'} color={post.author_color} size={32} />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '2px' }}>
-                          <span style={{ fontWeight: 500, fontSize: '13px' }}>{post.author_name}</span>
-                          <span style={{ fontSize: '11px', color: '#8B8B8B' }}>
-                            ・ {timeAgo(post.created_at)}
-                          </span>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            justifyContent: 'space-between',
+                            gap: '6px',
+                            marginBottom: '2px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', minWidth: 0 }}>
+                            <span style={{ fontWeight: 500, fontSize: '13px' }}>{post.author_name}</span>
+                            <span style={{ fontSize: '11px', color: '#8B8B8B' }}>
+                              ・ {timeAgo(post.created_at)}
+                            </span>
+                          </div>
+                          {userId && userId === post.author_id && onDelete && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleDelete(e, post)}
+                              disabled={deletingId === post.id}
+                              title="この投稿を削除"
+                              aria-label="投稿を削除"
+                              style={{
+                                fontSize: '12px',
+                                color: '#8B8B8B',
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: deletingId === post.id ? 'wait' : 'pointer',
+                                padding: '2px 4px',
+                                opacity: deletingId === post.id ? 0.4 : 1,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {deletingId === post.id ? '…' : '🗑'}
+                            </button>
+                          )}
                         </div>
                         <div style={{ marginBottom: '6px' }}>
                           <span style={{ fontWeight: 600, fontSize: '15px', color: '#1B1B1B' }}>
