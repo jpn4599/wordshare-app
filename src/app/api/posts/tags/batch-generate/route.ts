@@ -116,15 +116,58 @@ export async function POST(request: NextRequest) {
       });
     }
   } catch (e) {
-    console.error('Tag generation error:', e);
+    const errMsg = (e as Error).message ?? 'Unknown error';
+    console.error('Tag generation error:', errMsg);
+
+    // Classify error
+    const lower = errMsg.toLowerCase();
+    const isQuotaError =
+      lower.includes('credits are depleted') ||
+      lower.includes('quota') ||
+      lower.includes('429') ||
+      lower.includes('resource_exhausted') ||
+      lower.includes('rate limit');
+    const isAuthError =
+      lower.includes('api key') ||
+      lower.includes('api_key') ||
+      lower.includes('permission_denied') ||
+      lower.includes('unauthenticated') ||
+      lower.includes('401') ||
+      lower.includes('403');
+
+    // For quota/auth errors → roll back to 'pending' so a retry works once
+    // the user tops up credits or swaps the key. For parse/other errors →
+    // mark as 'failed' so the user sees it was a content-level problem.
+    const rollbackStatus: 'pending' | 'failed' =
+      isQuotaError || isAuthError ? 'pending' : 'failed';
+
     await admin
       .from('posts')
-      .update({ tagging_status: 'failed' })
+      .update({ tagging_status: rollbackStatus })
       .in(
         'id',
         targetPosts.map((p) => p.id)
       );
     targetPosts.forEach((p) => failed.push(p.id));
+
+    const friendly = isQuotaError
+      ? 'Gemini API のクレジットが枯渇しています。新しいプロジェクトで API キーを作り直すか、課金プロジェクトにクレジットを追加してください。（https://aistudio.google.com/apikey）'
+      : isAuthError
+        ? 'Gemini API キーが無効または権限がありません。Vercel の環境変数 GEMINI_API_KEY を確認してください。'
+        : errMsg;
+
+    return NextResponse.json(
+      {
+        success: false,
+        processed: results.length,
+        failed: failed.length,
+        results,
+        error: friendly,
+        errorType: isQuotaError ? 'quota' : isAuthError ? 'auth' : 'other',
+        retryable: isQuotaError || isAuthError,
+      },
+      { status: isQuotaError ? 429 : isAuthError ? 401 : 500 }
+    );
   }
 
   return NextResponse.json({

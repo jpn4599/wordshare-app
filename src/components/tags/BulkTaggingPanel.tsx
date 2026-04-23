@@ -18,6 +18,7 @@ interface BatchResult {
 }
 
 type PanelState = 'idle' | 'running' | 'done' | 'error';
+type ErrorType = 'quota' | 'auth' | 'other' | null;
 
 export function BulkTaggingPanel() {
   const [counts, setCounts] = useState<TaggingCounts | null>(null);
@@ -25,6 +26,7 @@ export function BulkTaggingPanel() {
   const [panelState, setPanelState] = useState<PanelState>('idle');
   const [results, setResults] = useState<BatchResult[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<ErrorType>(null);
   const [processedCount, setProcessedCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
 
@@ -52,6 +54,7 @@ export function BulkTaggingPanel() {
       setPanelState('running');
       setResults([]);
       setErrorMsg(null);
+      setErrorType(null);
 
       try {
         const res = await fetch('/api/posts/tags/batch-generate', {
@@ -66,9 +69,11 @@ export function BulkTaggingPanel() {
           failed: number;
           results: BatchResult[];
           error?: string;
+          errorType?: ErrorType;
         };
 
         if (!res.ok) {
+          setErrorType(data.errorType ?? 'other');
           throw new Error(data.error ?? `HTTP ${res.status}`);
         }
 
@@ -252,11 +257,63 @@ export function BulkTaggingPanel() {
           }}
         >
           <p style={{ margin: 0, fontSize: '13px', color: '#E76F51', fontWeight: 600 }}>
-            ⚠️ エラーが発生しました
+            {errorType === 'quota'
+              ? '💳 Gemini API クレジットが不足しています'
+              : errorType === 'auth'
+                ? '🔑 API キーの認証エラー'
+                : '⚠️ エラーが発生しました'}
           </p>
-          <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#555555', wordBreak: 'break-all' }}>
+          <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#555555', wordBreak: 'break-word', lineHeight: 1.6 }}>
             {errorMsg}
           </p>
+
+          {errorType === 'quota' && (
+            <div style={{ marginTop: '10px', padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #FFD4C4' }}>
+              <p style={{ margin: 0, fontSize: '12px', color: '#1B1B1B', fontWeight: 600 }}>
+                ✅ 対処方法（推奨：無料枠で新規作成）
+              </p>
+              <ol style={{ margin: '6px 0 0', paddingLeft: '20px', fontSize: '11px', color: '#555555', lineHeight: 1.8 }}>
+                <li>
+                  <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: '#2D6A4F', fontWeight: 600 }}>
+                    Google AI Studio の API キー画面を開く →
+                  </a>
+                </li>
+                <li>
+                  <b>「Create API key in new project」</b>を選択
+                  <br />
+                  <span style={{ fontSize: '10px', color: '#8B8B8B' }}>
+                    （既存の課金プロジェクトを選ばない！新規プロジェクトなら無料枠が使えます）
+                  </span>
+                </li>
+                <li>
+                  新しい <code>AIzaSy...</code> で始まるキーを取得
+                </li>
+                <li>
+                  Vercel の環境変数 <code>GEMINI_API_KEY</code> を更新して再デプロイ
+                </li>
+              </ol>
+              <p style={{ margin: '8px 0 0', fontSize: '10px', color: '#8B8B8B' }}>
+                💡 投稿は自動的に「未処理」に戻りました。キーを更新したらこのボタンで再試行できます。
+              </p>
+            </div>
+          )}
+
+          {errorType === 'auth' && (
+            <div style={{ marginTop: '10px', padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #FFD4C4' }}>
+              <p style={{ margin: 0, fontSize: '12px', color: '#1B1B1B', fontWeight: 600 }}>
+                🔧 対処方法
+              </p>
+              <ul style={{ margin: '6px 0 0', paddingLeft: '20px', fontSize: '11px', color: '#555555', lineHeight: 1.8 }}>
+                <li>Vercel の環境変数 <code>GEMINI_API_KEY</code> が正しいか確認</li>
+                <li>キーの権限（Generative Language API が有効か）を確認</li>
+                <li>
+                  <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: '#2D6A4F' }}>
+                    AI Studio で新しいキーを作成
+                  </a>
+                </li>
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
