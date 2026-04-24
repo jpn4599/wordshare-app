@@ -5,6 +5,8 @@ interface TagBadgeProps {
   source: TagSource;
   onRemove?: () => void;
   size?: 'sm' | 'md';
+  /** 画像上にオーバーレイ表示する場合 true。半透明白背景に切り替わる */
+  overlayMode?: boolean;
 }
 
 const SOURCE_STYLES: Record<TagSource, { bg: string; color: string; icon: string }> = {
@@ -13,16 +15,18 @@ const SOURCE_STYLES: Record<TagSource, { bg: string; color: string; icon: string
   user: { bg: '#FAEEDA', color: '#633806', icon: '👤' },
 };
 
-export function TagBadge({ name, source, onRemove, size = 'sm' }: TagBadgeProps) {
+export function TagBadge({ name, source, onRemove, size = 'sm', overlayMode = false }: TagBadgeProps) {
   const style = SOURCE_STYLES[source];
   const fontSize = size === 'sm' ? '11px' : '13px';
   const padding = size === 'sm' ? '2px 8px' : '4px 10px';
+  const bg = overlayMode ? 'rgba(255, 255, 255, 0.88)' : style.bg;
+  const color = style.color;
 
   return (
     <span
       style={{
-        background: style.bg,
-        color: style.color,
+        background: bg,
+        color,
         padding,
         borderRadius: '10px',
         fontSize,
@@ -30,6 +34,7 @@ export function TagBadge({ name, source, onRemove, size = 'sm' }: TagBadgeProps)
         alignItems: 'center',
         gap: '4px',
         lineHeight: '1.4',
+        backdropFilter: overlayMode ? 'blur(4px)' : undefined,
       }}
     >
       <span style={{ fontSize: '10px' }}>{style.icon}</span>

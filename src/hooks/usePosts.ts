@@ -2,14 +2,29 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { Comment, Post, PostWithTags, Reaction } from '@/lib/types';
+import type {
+  Comment,
+  Post,
+  PostWithTags,
+  ReactionCounts,
+  ReactionType,
+} from '@/lib/types';
 import type { Tag, TagSource } from '@/lib/types/tag';
+
+export interface PostReactionState {
+  counts: ReactionCounts;
+  myReactions: ReactionType[];
+}
 
 type PostBundle = {
   posts: PostWithTags[];
-  reactionsByPost: Record<string, Reaction[]>;
+  reactionsByPost: Record<string, PostReactionState>;
   commentsByPost: Record<string, Comment[]>;
 };
+
+function emptyReactionState(): PostReactionState {
+  return { counts: { got_it: 0, tough_one: 0, useful: 0 }, myReactions: [] };
+}
 
 function groupBy<T extends { post_id: string }>(items: T[]) {
   return items.reduce<Record<string, T[]>>((acc, item) => {
@@ -18,6 +33,8 @@ function groupBy<T extends { post_id: string }>(items: T[]) {
     return acc;
   }, {});
 }
+
+const VALID_TYPES: ReactionType[] = ['got_it', 'tough_one', 'useful'];
 
 export function usePosts(userId?: string) {
   const supabase = useMemo(() => createClient(), []);
@@ -40,12 +57,12 @@ export function usePosts(userId?: string) {
 
     const [
       { data: posts, error: postsError },
-      { data: reactions },
+      { data: postReactions },
       { data: comments },
       { data: wordTags },
     ] = await Promise.all([
       supabase.from('posts_with_counts').select('*').order('created_at', { ascending: false }),
-      supabase.from('reactions').select('*'),
+      supabase.from('post_reactions').select('post_id, user_id, type'),
       supabase
         .from('comments')
         .select('*, profiles:author_id(username, avatar_color)')
@@ -70,6 +87,20 @@ export function usePosts(userId?: string) {
       tagsByPost[wt.post_id].push({ ...(tag as Tag), source: wt.source as TagSource });
     }
 
+    // Aggregate reactions per post
+    const reactionsByPost: Record<string, PostReactionState> = {};
+    for (const row of postReactions ?? []) {
+      const pid = (row as { post_id: string }).post_id;
+      const type = (row as { type: string }).type as ReactionType;
+      const uid = (row as { user_id: string }).user_id;
+      if (!VALID_TYPES.includes(type)) continue;
+      reactionsByPost[pid] ??= emptyReactionState();
+      reactionsByPost[pid].counts[type] += 1;
+      if (userId && uid === userId && !reactionsByPost[pid].myReactions.includes(type)) {
+        reactionsByPost[pid].myReactions.push(type);
+      }
+    }
+
     const normalizedComments =
       comments?.map((comment) => ({
         ...comment,
@@ -88,24 +119,28 @@ export function usePosts(userId?: string) {
 
     setBundle({
       posts: postsWithTags,
-      reactionsByPost: groupBy((reactions ?? []) as Reaction[]),
+      reactionsByPost,
       commentsByPost: groupBy(normalizedComments as Comment[]),
     });
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, userId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  // Realtime subscriptions (posts, reactions, comments, word_tags)
+  // Realtime subscriptions (posts, post_reactions, comments, word_tags)
   useEffect(() => {
     if (!supabase) return;
 
     const channel = supabase
       .channel('wordshare-feed')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => void load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reactions' }, () => void load())
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'post_reactions' },
+        () => void load()
+      )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => void load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'word_tags' }, () => void load())
       .subscribe();
@@ -116,7 +151,12 @@ export function usePosts(userId?: string) {
   }, [load, supabase]);
 
   const createPost = useCallback(
-    async (values: Pick<Post, 'word' | 'meaning' | 'example' | 'episode'>) => {
+    async (
+      values: Pick<
+        Post,
+        'word' | 'meaning' | 'example' | 'episode' | 'image_url' | 'image_source' | 'image_credit'
+      >
+    ) => {
       if (!supabase || !userId) return;
 
       const { data: newPost, error: insertError } = await supabase
@@ -141,27 +181,6 @@ export function usePosts(userId?: string) {
     [load, supabase, userId]
   );
 
-  const toggleReaction = useCallback(
-    async (postId: string, emoji: Reaction['emoji']) => {
-      if (!supabase || !userId) return;
-
-      const existing = bundle.reactionsByPost[postId]?.find(
-        (r) => r.user_id === userId && r.emoji === emoji
-      );
-
-      if (existing) {
-        const { error } = await supabase.from('reactions').delete().eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('reactions').insert({ post_id: postId, user_id: userId, emoji });
-        if (error) throw error;
-      }
-
-      await load();
-    },
-    [bundle.reactionsByPost, load, supabase, userId]
-  );
-
   const createComment = useCallback(
     async (postId: string, text: string) => {
       if (!supabase || !userId) return;
@@ -178,6 +197,14 @@ export function usePosts(userId?: string) {
     setBundle((prev) => ({
       ...prev,
       posts: prev.posts.map((p) => (p.id === updatedPost.id ? updatedPost : p)),
+    }));
+  }, []);
+
+  /** Optimistic reaction update — called by ReactionBar's onChange */
+  const updatePostReactions = useCallback((postId: string, next: PostReactionState) => {
+    setBundle((prev) => ({
+      ...prev,
+      reactionsByPost: { ...prev.reactionsByPost, [postId]: next },
     }));
   }, []);
 
@@ -204,7 +231,6 @@ export function usePosts(userId?: string) {
         await load();
         throw deleteError;
       }
-      // Reactions, comments, word_tags, srs_cards, quiz_history all cascade via FK
     },
     [load, supabase, userId]
   );
@@ -216,9 +242,9 @@ export function usePosts(userId?: string) {
     configured: Boolean(supabase),
     refresh: load,
     createPost,
-    toggleReaction,
     createComment,
     updatePostTags,
+    updatePostReactions,
     deletePost,
   };
 }

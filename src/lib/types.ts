@@ -9,6 +9,12 @@ export interface Profile {
   updated_at: string;
 }
 
+export interface ImageCredit {
+  photographer_name: string;
+  photographer_url: string;
+  unsplash_url: string;
+}
+
 export interface Post {
   id: string;
   author_id: string;
@@ -21,6 +27,10 @@ export interface Post {
   // v2.1: tagging
   tagging_status?: 'pending' | 'processing' | 'completed' | 'failed';
   tagged_at?: string | null;
+  // v2.2: image
+  image_url?: string | null;
+  image_source?: 'unsplash' | 'user_upload' | null;
+  image_credit?: ImageCredit | null;
   // Joined fields
   author_name?: string;
   author_color?: string;
@@ -43,6 +53,23 @@ export interface Reaction {
   user_id: string;
   emoji: '👍' | '🔥' | '💡' | '❤️';
   created_at: string;
+}
+
+/** v2.2 Phase 6: Semantic reactions */
+export type ReactionType = 'got_it' | 'tough_one' | 'useful';
+
+export interface PostReaction {
+  id: string;
+  post_id: string;
+  user_id: string;
+  type: ReactionType;
+  created_at: string;
+}
+
+export interface ReactionCounts {
+  got_it: number;
+  tough_one: number;
+  useful: number;
 }
 
 export interface Comment {

@@ -7,6 +7,7 @@ const items = [
   { href: '/timeline', label: 'Timeline' },
   { href: '/quiz', label: 'Quiz' },
   { href: '/stats', label: 'Stats' },
+  { href: '/badges', label: 'Badges' },
 ];
 
 export function BottomNav() {

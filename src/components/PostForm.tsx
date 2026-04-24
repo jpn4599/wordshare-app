@@ -6,12 +6,17 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input, Textarea } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
+import { UnsplashPicker, type UnsplashPickerPhoto } from '@/components/posts/UnsplashPicker';
+import type { ImageCredit } from '@/lib/types';
 
-interface PostFormValues {
+export interface PostFormValues {
   word: string;
   meaning: string;
   example: string;
   episode: string;
+  image_url?: string | null;
+  image_source?: 'unsplash' | null;
+  image_credit?: ImageCredit | null;
 }
 
 const initialValues: PostFormValues = {
@@ -19,6 +24,9 @@ const initialValues: PostFormValues = {
   meaning: '',
   example: '',
   episode: '',
+  image_url: null,
+  image_source: null,
+  image_credit: null,
 };
 
 export function PostForm({
@@ -27,9 +35,40 @@ export function PostForm({
   onSubmit: (values: PostFormValues) => Promise<void>;
 }) {
   const [values, setValues] = useState<PostFormValues>(initialValues);
+  const [selectedPhoto, setSelectedPhoto] = useState<UnsplashPickerPhoto | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [generating, setGenerating] = useState(false);
   const canSubmit = useMemo(() => values.word.trim() && values.meaning.trim(), [values]);
+
+  function handleSelectPhoto(photo: UnsplashPickerPhoto | null) {
+    setSelectedPhoto(photo);
+    setValues((prev) => ({
+      ...prev,
+      image_url: photo?.url ?? null,
+      image_source: photo ? 'unsplash' : null,
+      image_credit: photo?.credit ?? null,
+    }));
+  }
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    try {
+      // Unsplash ダウンロード通知（選択時のみ）
+      if (selectedPhoto) {
+        await fetch('/api/unsplash/trigger-download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ download_location: selectedPhoto.download_location }),
+        }).catch(() => void 0);
+      }
+
+      await onSubmit(values);
+      setValues(initialValues);
+      setSelectedPhoto(null);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <Card className="space-y-4 bg-[#fffaf5]">
@@ -61,6 +100,15 @@ export function PostForm({
         />
       </div>
 
+      {/* Unsplash 画像選択 */}
+      {values.word.trim().length >= 2 && (
+        <UnsplashPicker
+          searchQuery={values.word.trim()}
+          onSelect={handleSelectPhoto}
+          selectedId={selectedPhoto?.id ?? null}
+        />
+      )}
+
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
@@ -90,19 +138,7 @@ export function PostForm({
           {generating ? <Spinner /> : 'AIで例文生成'}
         </Button>
 
-        <Button
-          type="button"
-          disabled={!canSubmit || submitting}
-          onClick={async () => {
-            setSubmitting(true);
-            try {
-              await onSubmit(values);
-              setValues(initialValues);
-            } finally {
-              setSubmitting(false);
-            }
-          }}
-        >
+        <Button type="button" disabled={!canSubmit || submitting} onClick={handleSubmit}>
           {submitting ? <Spinner /> : '投稿する'}
         </Button>
       </div>

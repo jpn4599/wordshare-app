@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
 
+import { BadgeToast } from '@/components/badges/BadgeToast';
 import { BottomNav } from '@/components/BottomNav';
-import { PostForm } from '@/components/PostForm';
+import { FeaturedWordCard } from '@/components/featured/FeaturedWordCard';
+import { PostForm, type PostFormValues } from '@/components/PostForm';
+import { StreakCard } from '@/components/streak/StreakCard';
 import { TagEditModal } from '@/components/tags/TagEditModal';
 import { TagGroupedView } from '@/components/timeline/TagGroupedView';
 import { ViewSwitcher, type TimelineView } from '@/components/timeline/ViewSwitcher';
@@ -13,8 +16,9 @@ import { WordCard } from '@/components/WordCard';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useAuth } from '@/hooks/useAuth';
+import { useBadgeChecker } from '@/hooks/useBadgeChecker';
 import { usePosts } from '@/hooks/usePosts';
-import type { PostWithTags } from '@/lib/types';
+import type { PostWithTags, ReactionCounts, ReactionType } from '@/lib/types';
 
 export default function TimelinePage() {
   const { user, loading: authLoading, configured } = useAuth();
@@ -25,14 +29,39 @@ export default function TimelinePage() {
     loading,
     error,
     createPost,
-    toggleReaction,
     createComment,
     updatePostTags,
+    updatePostReactions,
     deletePost,
   } = usePosts(user?.id);
 
+  const { toast, checkBadges, dismissFirst } = useBadgeChecker();
+
   const [view, setView] = useState<TimelineView>('chronological');
   const [editingPost, setEditingPost] = useState<PostWithTags | null>(null);
+
+  // Wrap createPost so we can fire a badge check after each new post.
+  const handleCreatePost = useCallback(
+    async (values: PostFormValues) => {
+      await createPost(values);
+      void checkBadges();
+    },
+    [createPost, checkBadges]
+  );
+
+  // Wrap reaction change so the badge checker fires whenever the
+  // authenticated user adds (not removes) one of their own reactions.
+  const handleReactionChange = useCallback(
+    (
+      postId: string,
+      next: { counts: ReactionCounts; myReactions: ReactionType[] }
+    ) => {
+      const prev = reactionsByPost[postId]?.myReactions.length ?? 0;
+      updatePostReactions(postId, next);
+      if (next.myReactions.length > prev) void checkBadges();
+    },
+    [reactionsByPost, updatePostReactions, checkBadges]
+  );
 
   return (
     <div className="space-y-6">
@@ -54,8 +83,12 @@ export default function TimelinePage() {
         </Card>
       ) : null}
 
+      {configured && user ? <FeaturedWordCard /> : null}
+
+      {configured && user ? <StreakCard /> : null}
+
       {configured && user ? (
-        <PostForm onSubmit={createPost} />
+        <PostForm onSubmit={handleCreatePost} />
       ) : (
         <Card className="space-y-4">
           <p className="text-sm leading-6 text-text-mid">
@@ -88,10 +121,15 @@ export default function TimelinePage() {
               <WordCard
                 key={post.id}
                 post={post}
-                reactions={reactionsByPost[post.id] ?? []}
+                reactionState={
+                  reactionsByPost[post.id] ?? {
+                    counts: { got_it: 0, tough_one: 0, useful: 0 },
+                    myReactions: [],
+                  }
+                }
                 comments={commentsByPost[post.id] ?? []}
                 userId={user?.id}
-                onToggleReaction={toggleReaction}
+                onReactionChange={handleReactionChange}
                 onCreateComment={createComment}
                 onEditTags={user ? setEditingPost : undefined}
                 onDelete={user ? deletePost : undefined}
@@ -126,6 +164,11 @@ export default function TimelinePage() {
             setEditingPost(null);
           }}
         />
+      )}
+
+      {/* v2.2: Badge earned toast */}
+      {toast && (
+        <BadgeToast badgeName={toast.name} icon={toast.icon} onClose={dismissFirst} />
       )}
     </div>
   );

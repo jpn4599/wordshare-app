@@ -7,23 +7,26 @@ import { TagBadge } from '@/components/tags/TagBadge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
 import { timeAgo } from '@/lib/utils';
-import type { Comment, PostWithTags, Reaction } from '@/lib/types';
+import type { Comment, PostWithTags, ReactionCounts, ReactionType } from '@/lib/types';
 
 export function WordCard({
   post,
-  reactions,
+  reactionState,
   comments,
   userId,
-  onToggleReaction,
+  onReactionChange,
   onCreateComment,
   onEditTags,
   onDelete,
 }: {
   post: PostWithTags;
-  reactions: Reaction[];
+  reactionState: { counts: ReactionCounts; myReactions: ReactionType[] };
   comments: Comment[];
   userId?: string;
-  onToggleReaction: (postId: string, emoji: Reaction['emoji']) => void;
+  onReactionChange: (
+    postId: string,
+    next: { counts: ReactionCounts; myReactions: ReactionType[] }
+  ) => void;
   onCreateComment: (postId: string, text: string) => Promise<void>;
   onEditTags?: (post: PostWithTags) => void;
   onDelete?: (postId: string) => Promise<void>;
@@ -51,6 +54,44 @@ export function WordCard({
 
   return (
     <Card className="space-y-4">
+      {/* Image (if attached) with tag overlay */}
+      {post.image_url ? (
+        <div
+          style={{
+            width: '100%',
+            aspectRatio: '4/3',
+            overflow: 'hidden',
+            borderRadius: '14px',
+            position: 'relative',
+            background: '#F6F1EB',
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={post.image_url}
+            alt={post.word}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+          {tags.length > 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '8px',
+                left: '10px',
+                display: 'flex',
+                gap: '4px',
+                flexWrap: 'wrap',
+                maxWidth: 'calc(100% - 20px)',
+              }}
+            >
+              {tags.slice(0, 3).map((tag) => (
+                <TagBadge key={tag.id} name={tag.name} source={tag.source} overlayMode />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
+
       <div className="flex items-start gap-3">
         <Avatar name={post.author_name || 'U'} color={post.author_color} />
         <div className="flex-1">
@@ -60,13 +101,6 @@ export function WordCard({
               <p className="text-xs text-text-light">{timeAgo(post.created_at)}</p>
             </div>
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                className="text-sm text-primary"
-                onClick={() => setShowComments((v) => !v)}
-              >
-                {showComments ? '閉じる' : `コメント ${comments.length}`}
-              </button>
               {isAuthor && onDelete && (
                 <button
                   type="button"
@@ -138,10 +172,38 @@ export function WordCard({
         </div>
       </div>
 
+      {/* Unsplash photo credit */}
+      {post.image_url && post.image_credit && (
+        <p className="text-[10px] text-text-light">
+          Photo by{' '}
+          <a
+            href={post.image_credit.photographer_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            {post.image_credit.photographer_name}
+          </a>{' '}
+          on{' '}
+          <a
+            href={post.image_credit.unsplash_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            Unsplash
+          </a>
+        </p>
+      )}
+
+      {/* v2.2: semantic reactions + reply */}
       <ReactionBar
-        reactions={reactions}
-        userId={userId}
-        onToggle={(emoji) => onToggleReaction(post.id, emoji)}
+        postId={post.id}
+        counts={reactionState.counts}
+        myReactions={reactionState.myReactions}
+        replyCount={comments.length}
+        onReplyClick={() => setShowComments((v) => !v)}
+        onChange={(next) => onReactionChange(post.id, next)}
       />
 
       {showComments ? (
